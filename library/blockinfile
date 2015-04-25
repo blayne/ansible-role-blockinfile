@@ -6,7 +6,11 @@
 # Licensed under GPL version 3 or later
 # (c) 2014 YAEGASHI Takeshi <yaegashi@debian.org>
 # (c) 2013 Evan Kaufman <evan@digitalflophouse.com>
-
+#
+# Modified version:
+# uid: blayne
+# https://github.com/blayne/ansible-role-blockinfile
+#
 import re
 import os
 import tempfile
@@ -29,12 +33,14 @@ options:
     aliases: [ name, destfile ]
     description:
       - The file to modify.
-  marker:
-    required: false
-    default: "# {mark} ANSIBLE MANAGED BLOCK"
+  top_marker:
+    required: true
     description:
-      - The marker line template.
-        "{mark}" will be replaced with "BEGIN" or "END".
+      - The block begin marker line template.
+  bottom_marker:
+    required: true
+    description:
+      - The block end marker line template.
   content:
     required: false
     default: ""
@@ -74,7 +80,8 @@ EXAMPLES = r"""
 
 - blockinfile: |
     dest=/var/www/html/index.html backup=yes
-    marker="<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+    top_marker="# <my_block>"
+    bottom_marker="# </my_block>"
     content="<h1>Welcome to {{ansible_hostname}}</h1>"
 """
 
@@ -114,7 +121,8 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             dest=dict(required=True, aliases=['name', 'destfile']),
-            marker=dict(default='# {mark} ANSIBLE MANAGED BLOCK', type='str'),
+            top_marker=dict(required=True, type='str'),
+            bottom_marker=dict(required=True, type='str'),
             content=dict(default='', type='str'),
             create=dict(default='no', choices=BOOLEANS, type='bool'),
             backup=dict(default='no', choices=BOOLEANS, type='bool'),
@@ -141,8 +149,9 @@ def main():
         contents = f.read()
         f.close()
 
-    mfunc = lambda x: re.sub(r'{mark}', x, params['marker'], 0)
-    markers = tuple(map(mfunc, ("BEGIN", "END")))
+    top_marker = params['top_marker']
+    bottom_marker = params['bottom_marker']
+    markers = (top_marker, bottom_marker)
     markers_escaped = tuple(map(lambda x: re.escape(x), markers))
     if params['content'] == '':
         repl = ''
